@@ -61,6 +61,6 @@ This document records AI assistance used during development.
 - Leading and trailing spaces — successfully removed.
 - PostgreSQL persistence — verified.
 
-**Commit:** Pending — commit this implementation after the changes are reviewed.
+**Commit:** `38eb754` — Implement account creation and validation.
 
-**Security note:** Account creation validation is implemented. Authentication, account ownership checks, and authorization still need to be implemented and tested.
+**Security note:** Account creation validation is implemented. Authentication, account ownership checks, and authorization still need to be implemented and tested.git status
