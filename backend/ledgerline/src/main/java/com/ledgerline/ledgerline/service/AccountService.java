@@ -2,6 +2,7 @@
 package com.ledgerline.ledgerline.service;
 
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -75,6 +76,12 @@ public class AccountService {
         auditLogRepository.save(auditLog);
 
         return savedAccount;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Account> getAccounts(UUID userId) {
+        return accountRepository
+                .findAllByOwner_IdOrderByCreatedAtDesc(userId);
     }
 
     private String generateUniqueAccountNumber() {

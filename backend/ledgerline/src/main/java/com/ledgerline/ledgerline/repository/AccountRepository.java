@@ -1,6 +1,7 @@
 
 package com.ledgerline.ledgerline.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +21,8 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     boolean existsByAccountNumber(String accountNumber);
 
     boolean existsByIdAndOwner_Id(UUID accountId, UUID userId);
+
+    List<Account> findAllByOwner_IdOrderByCreatedAtDesc(UUID userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
