@@ -8,6 +8,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ledgerline.ledgerline.audit.AuditLog;
+import com.ledgerline.ledgerline.audit.AuditLogRepository;
 import com.ledgerline.ledgerline.entity.Account;
 import com.ledgerline.ledgerline.entity.AppUser;
 import com.ledgerline.ledgerline.repository.AccountRepository;
@@ -18,15 +20,18 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final AppUserRepository userRepository;
+    private final AuditLogRepository auditLogRepository;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
     public AccountService(
             AccountRepository accountRepository,
-            AppUserRepository userRepository) {
+            AppUserRepository userRepository,
+            AuditLogRepository auditLogRepository) {
 
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Transactional
@@ -58,7 +63,18 @@ public class AccountService {
                 owner
         );
 
-        return accountRepository.save(account);
+        Account savedAccount = accountRepository.save(account);
+
+        AuditLog auditLog = new AuditLog(
+                userId,
+                savedAccount.getId(),
+                "ACCOUNT_CREATED",
+                null
+        );
+
+        auditLogRepository.save(auditLog);
+
+        return savedAccount;
     }
 
     private String generateUniqueAccountNumber() {

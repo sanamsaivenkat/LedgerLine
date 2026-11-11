@@ -19,6 +19,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.ledgerline.ledgerline.audit.AuditLog;
+import com.ledgerline.ledgerline.audit.AuditLogRepository;
 import com.ledgerline.ledgerline.entity.Account;
 import com.ledgerline.ledgerline.entity.AppUser;
 import com.ledgerline.ledgerline.repository.AccountRepository;
@@ -33,6 +35,9 @@ class LedgerlineApplicationTests {
 
     @Mock
     private AppUserRepository userRepository;
+
+    @Mock
+    private AuditLogRepository auditLogRepository;
 
     @InjectMocks
     private AccountService accountService;
@@ -58,14 +63,14 @@ class LedgerlineApplicationTests {
         Account account = accountService.createAccount("Test User", userId);
 
         assertEquals("Test User", account.getAccountHolderName());
-
         assertEquals(0, account.getBalance().compareTo(BigDecimal.ZERO));
-
         assertEquals("ACTIVE", account.getStatus().name());
-
         assertEquals(user, account.getOwner());
 
         verify(accountRepository).save(any(Account.class));
+
+        // Verify audit record is saved
+        verify(auditLogRepository).save(any(AuditLog.class));
     }
 
     // Test 2: Empty account holder name is rejected
@@ -77,6 +82,7 @@ class LedgerlineApplicationTests {
 
         verify(userRepository, never()).findById(any());
         verify(accountRepository, never()).save(any(Account.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 3: Name longer than 100 characters is rejected
@@ -90,6 +96,7 @@ class LedgerlineApplicationTests {
 
         verify(userRepository, never()).findById(any());
         verify(accountRepository, never()).save(any(Account.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 4: Account creation is rejected for an unknown user
@@ -103,5 +110,6 @@ class LedgerlineApplicationTests {
                 () -> accountService.createAccount("Test User", userId));
 
         verify(accountRepository, never()).save(any(Account.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 }

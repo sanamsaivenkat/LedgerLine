@@ -9,6 +9,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ledgerline.ledgerline.audit.AuditLog;
+import com.ledgerline.ledgerline.audit.AuditLogRepository;
 import com.ledgerline.ledgerline.entity.Account;
 import com.ledgerline.ledgerline.entity.AccountStatus;
 import com.ledgerline.ledgerline.repository.AccountRepository;
@@ -21,13 +23,16 @@ public class TransactionService {
 
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final AuditLogRepository auditLogRepository;
 
     public TransactionService(
             AccountRepository accountRepository,
-            TransactionRepository transactionRepository) {
+            TransactionRepository transactionRepository,
+            AuditLogRepository auditLogRepository) {
 
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Transactional
@@ -48,7 +53,19 @@ public class TransactionService {
                 account.getBalance()
         );
 
-        return transactionRepository.save(transaction);
+        Transaction savedTransaction =
+                transactionRepository.save(transaction);
+
+        AuditLog auditLog = new AuditLog(
+                userId,
+                account.getId(),
+                "DEPOSIT",
+                amount
+        );
+
+        auditLogRepository.save(auditLog);
+
+        return savedTransaction;
     }
 
     @Transactional
@@ -69,7 +86,19 @@ public class TransactionService {
                 account.getBalance()
         );
 
-        return transactionRepository.save(transaction);
+        Transaction savedTransaction =
+                transactionRepository.save(transaction);
+
+        AuditLog auditLog = new AuditLog(
+                userId,
+                account.getId(),
+                "WITHDRAWAL",
+                amount
+        );
+
+        auditLogRepository.save(auditLog);
+
+        return savedTransaction;
     }
 
     @Transactional(readOnly = true)

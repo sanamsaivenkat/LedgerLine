@@ -1,6 +1,8 @@
 
 package com.ledgerline.ledgerline;
 
+import com.ledgerline.ledgerline.audit.AuditLog;
+import com.ledgerline.ledgerline.audit.AuditLogRepository;
 import com.ledgerline.ledgerline.entity.Account;
 import com.ledgerline.ledgerline.entity.AppUser;
 import com.ledgerline.ledgerline.repository.AccountRepository;
@@ -33,14 +35,16 @@ class TransactionServiceTests {
     @Mock
     private TransactionRepository transactionRepository;
 
+    @Mock
+    private AuditLogRepository auditLogRepository;
+
     @InjectMocks
     private TransactionService transactionService;
 
     private final UUID userId =
             UUID.fromString("50009149-afa3-416b-b0f4-0f5965ad3a4c");
 
-    private final UUID anotherUserId =
-            UUID.randomUUID();
+    private final UUID anotherUserId = UUID.randomUUID();
 
     private Account createAccount() {
 
@@ -71,9 +75,7 @@ class TransactionServiceTests {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         Transaction transaction = transactionService.deposit(
-                account.getId(),
-                userId,
-                new BigDecimal("50.00")
+                account.getId(), userId, new BigDecimal("50.00")
         );
 
         assertEquals(TransactionType.DEPOSIT,
@@ -86,6 +88,7 @@ class TransactionServiceTests {
                 new BigDecimal("150.00")));
 
         verify(transactionRepository).save(any(Transaction.class));
+        verify(auditLogRepository).save(any(AuditLog.class));
     }
 
     // Test 2: Successful withdrawal by account owner
@@ -103,9 +106,7 @@ class TransactionServiceTests {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         Transaction transaction = transactionService.withdraw(
-                account.getId(),
-                userId,
-                new BigDecimal("40.00")
+                account.getId(), userId, new BigDecimal("40.00")
         );
 
         assertEquals(TransactionType.WITHDRAWAL,
@@ -115,6 +116,7 @@ class TransactionServiceTests {
                 new BigDecimal("60.00")));
 
         verify(transactionRepository).save(any(Transaction.class));
+        verify(auditLogRepository).save(any(AuditLog.class));
     }
 
     // Test 3: Reject withdrawal with insufficient balance
@@ -130,8 +132,7 @@ class TransactionServiceTests {
 
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.withdraw(
-                        account.getId(),
-                        userId,
+                        account.getId(), userId,
                         new BigDecimal("200.00")
                 ));
 
@@ -139,6 +140,7 @@ class TransactionServiceTests {
                 new BigDecimal("100.00")));
 
         verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 4: Reject zero transaction amount
@@ -149,16 +151,14 @@ class TransactionServiceTests {
 
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.deposit(
-                        accountId,
-                        userId,
-                        BigDecimal.ZERO
+                        accountId, userId, BigDecimal.ZERO
                 ));
 
         verify(accountRepository, never())
                 .findByIdAndOwnerIdForUpdate(any(), any());
 
-        verify(transactionRepository, never())
-                .save(any(Transaction.class));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 5: Reject negative transaction amount
@@ -169,16 +169,15 @@ class TransactionServiceTests {
 
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.deposit(
-                        accountId,
-                        userId,
+                        accountId, userId,
                         new BigDecimal("-50.00")
                 ));
 
         verify(accountRepository, never())
                 .findByIdAndOwnerIdForUpdate(any(), any());
 
-        verify(transactionRepository, never())
-                .save(any(Transaction.class));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 6: Reject deposit by a different user
@@ -193,20 +192,19 @@ class TransactionServiceTests {
 
         assertThrows(java.util.NoSuchElementException.class,
                 () -> transactionService.deposit(
-                        account.getId(),
-                        anotherUserId,
+                        account.getId(), anotherUserId,
                         new BigDecimal("50.00")
                 ));
 
         assertEquals(0, account.getBalance().compareTo(BigDecimal.ZERO));
 
-        verify(transactionRepository, never())
-                .save(any(Transaction.class));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 7: Reject withdrawal by a different user
     @Test
-    void shouldRejectWithdrawalByNonOwner() {
+    void shouldRejectwithdrawalByNonOwner() {
 
         Account account = createAccount();
         account.deposit(new BigDecimal("100.00"));
@@ -217,16 +215,15 @@ class TransactionServiceTests {
 
         assertThrows(java.util.NoSuchElementException.class,
                 () -> transactionService.withdraw(
-                        account.getId(),
-                        anotherUserId,
+                        account.getId(), anotherUserId,
                         new BigDecimal("40.00")
                 ));
 
         assertEquals(0, account.getBalance().compareTo(
                 new BigDecimal("100.00")));
 
-        verify(transactionRepository, never())
-                .save(any(Transaction.class));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
     // Test 8: Reject transaction history access by a different user
@@ -241,8 +238,7 @@ class TransactionServiceTests {
 
         assertThrows(java.util.NoSuchElementException.class,
                 () -> transactionService.getTransactionHistory(
-                        accountId,
-                        anotherUserId
+                        accountId, anotherUserId
                 ));
 
         verify(transactionRepository, never())
@@ -265,8 +261,7 @@ class TransactionServiceTests {
 
         List<Transaction> history =
                 transactionService.getTransactionHistory(
-                        accountId,
-                        userId
+                        accountId, userId
                 );
 
         assertNotNull(history);
@@ -274,5 +269,7 @@ class TransactionServiceTests {
 
         verify(transactionRepository)
                 .findByAccountIdOrderByCreatedAtDesc(accountId);
+
+        verifyNoInteractions(auditLogRepository);
     }
 }
