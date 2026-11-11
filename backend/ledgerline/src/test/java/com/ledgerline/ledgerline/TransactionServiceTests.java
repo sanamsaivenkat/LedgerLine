@@ -2,6 +2,7 @@
 package com.ledgerline.ledgerline;
 
 import com.ledgerline.ledgerline.entity.Account;
+import com.ledgerline.ledgerline.entity.AppUser;
 import com.ledgerline.ledgerline.repository.AccountRepository;
 import com.ledgerline.ledgerline.service.TransactionService;
 import com.ledgerline.ledgerline.transaction.Transaction;
@@ -16,7 +17,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -33,21 +36,45 @@ class TransactionServiceTests {
     @InjectMocks
     private TransactionService transactionService;
 
-    // Test 1: Successful deposit
+    private final UUID userId =
+            UUID.fromString("50009149-afa3-416b-b0f4-0f5965ad3a4c");
+
+    private final UUID anotherUserId =
+            UUID.randomUUID();
+
+    private Account createAccount() {
+
+        AppUser owner = new AppUser(
+                "test@example.com",
+                "password-hash"
+        );
+
+        return new Account(
+                "123456789012",
+                "Test User",
+                owner
+        );
+    }
+
+    // Test 1: Successful deposit by account owner
     @Test
     void shouldDepositSuccessfully() {
 
-        Account account = new Account("123456789012", "Test User");
+        Account account = createAccount();
         account.deposit(new BigDecimal("100.00"));
 
-        when(accountRepository.findByIdForUpdate(account.getId()))
+        when(accountRepository.findByIdAndOwnerIdForUpdate(
+                account.getId(), userId))
                 .thenReturn(Optional.of(account));
 
         when(transactionRepository.save(any(Transaction.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         Transaction transaction = transactionService.deposit(
-                account.getId(), new BigDecimal("50.00"));
+                account.getId(),
+                userId,
+                new BigDecimal("50.00")
+        );
 
         assertEquals(TransactionType.DEPOSIT,
                 transaction.getTransactionType());
@@ -61,21 +88,25 @@ class TransactionServiceTests {
         verify(transactionRepository).save(any(Transaction.class));
     }
 
-    // Test 2: Successful withdrawal
+    // Test 2: Successful withdrawal by account owner
     @Test
     void shouldWithdrawSuccessfully() {
 
-        Account account = new Account("123456789012", "Test User");
+        Account account = createAccount();
         account.deposit(new BigDecimal("100.00"));
 
-        when(accountRepository.findByIdForUpdate(account.getId()))
+        when(accountRepository.findByIdAndOwnerIdForUpdate(
+                account.getId(), userId))
                 .thenReturn(Optional.of(account));
 
         when(transactionRepository.save(any(Transaction.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         Transaction transaction = transactionService.withdraw(
-                account.getId(), new BigDecimal("40.00"));
+                account.getId(),
+                userId,
+                new BigDecimal("40.00")
+        );
 
         assertEquals(TransactionType.WITHDRAWAL,
                 transaction.getTransactionType());
@@ -90,15 +121,19 @@ class TransactionServiceTests {
     @Test
     void shouldRejectWithdrawalWithInsufficientBalance() {
 
-        Account account = new Account("123456789012", "Test User");
+        Account account = createAccount();
         account.deposit(new BigDecimal("100.00"));
 
-        when(accountRepository.findByIdForUpdate(account.getId()))
+        when(accountRepository.findByIdAndOwnerIdForUpdate(
+                account.getId(), userId))
                 .thenReturn(Optional.of(account));
 
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.withdraw(
-                        account.getId(), new BigDecimal("200.00")));
+                        account.getId(),
+                        userId,
+                        new BigDecimal("200.00")
+                ));
 
         assertEquals(0, account.getBalance().compareTo(
                 new BigDecimal("100.00")));
@@ -110,23 +145,134 @@ class TransactionServiceTests {
     @Test
     void shouldRejectZeroAmount() {
 
+        UUID accountId = UUID.randomUUID();
+
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.deposit(
-                        java.util.UUID.randomUUID(), BigDecimal.ZERO));
+                        accountId,
+                        userId,
+                        BigDecimal.ZERO
+                ));
 
-        verify(accountRepository, never()).findByIdForUpdate(any());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(accountRepository, never())
+                .findByIdAndOwnerIdForUpdate(any(), any());
+
+        verify(transactionRepository, never())
+                .save(any(Transaction.class));
     }
 
     // Test 5: Reject negative transaction amount
     @Test
     void shouldRejectNegativeAmount() {
 
+        UUID accountId = UUID.randomUUID();
+
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.deposit(
-                        java.util.UUID.randomUUID(), new BigDecimal("-50.00")));
+                        accountId,
+                        userId,
+                        new BigDecimal("-50.00")
+                ));
 
-        verify(accountRepository, never()).findByIdForUpdate(any());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(accountRepository, never())
+                .findByIdAndOwnerIdForUpdate(any(), any());
+
+        verify(transactionRepository, never())
+                .save(any(Transaction.class));
+    }
+
+    // Test 6: Reject deposit by a different user
+    @Test
+    void shouldRejectDepositByNonOwner() {
+
+        Account account = createAccount();
+
+        when(accountRepository.findByIdAndOwnerIdForUpdate(
+                account.getId(), anotherUserId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(java.util.NoSuchElementException.class,
+                () -> transactionService.deposit(
+                        account.getId(),
+                        anotherUserId,
+                        new BigDecimal("50.00")
+                ));
+
+        assertEquals(0, account.getBalance().compareTo(BigDecimal.ZERO));
+
+        verify(transactionRepository, never())
+                .save(any(Transaction.class));
+    }
+
+    // Test 7: Reject withdrawal by a different user
+    @Test
+    void shouldRejectWithdrawalByNonOwner() {
+
+        Account account = createAccount();
+        account.deposit(new BigDecimal("100.00"));
+
+        when(accountRepository.findByIdAndOwnerIdForUpdate(
+                account.getId(), anotherUserId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(java.util.NoSuchElementException.class,
+                () -> transactionService.withdraw(
+                        account.getId(),
+                        anotherUserId,
+                        new BigDecimal("40.00")
+                ));
+
+        assertEquals(0, account.getBalance().compareTo(
+                new BigDecimal("100.00")));
+
+        verify(transactionRepository, never())
+                .save(any(Transaction.class));
+    }
+
+    // Test 8: Reject transaction history access by a different user
+    @Test
+    void shouldRejectTransactionHistoryAccessByNonOwner() {
+
+        UUID accountId = UUID.randomUUID();
+
+        when(accountRepository.existsByIdAndOwner_Id(
+                accountId, anotherUserId))
+                .thenReturn(false);
+
+        assertThrows(java.util.NoSuchElementException.class,
+                () -> transactionService.getTransactionHistory(
+                        accountId,
+                        anotherUserId
+                ));
+
+        verify(transactionRepository, never())
+                .findByAccountIdOrderByCreatedAtDesc(any());
+    }
+
+    // Test 9: Allow transaction history access by account owner
+    @Test
+    void shouldAllowTransactionHistoryAccessByOwner() {
+
+        UUID accountId = UUID.randomUUID();
+
+        when(accountRepository.existsByIdAndOwner_Id(
+                accountId, userId))
+                .thenReturn(true);
+
+        when(transactionRepository.findByAccountIdOrderByCreatedAtDesc(
+                accountId))
+                .thenReturn(List.of());
+
+        List<Transaction> history =
+                transactionService.getTransactionHistory(
+                        accountId,
+                        userId
+                );
+
+        assertNotNull(history);
+        assertTrue(history.isEmpty());
+
+        verify(transactionRepository)
+                .findByAccountIdOrderByCreatedAtDesc(accountId);
     }
 }

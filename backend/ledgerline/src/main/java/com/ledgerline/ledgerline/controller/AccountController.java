@@ -1,6 +1,11 @@
+
 package com.ledgerline.ledgerline.controller;
 
+import java.util.UUID;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,10 +32,14 @@ public class AccountController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AccountResponse createAccount(
-            @Valid @RequestBody CreateAccountRequest request) {
+            @Valid @RequestBody CreateAccountRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        UUID userId = UUID.fromString(jwt.getSubject());
 
         Account account = accountService.createAccount(
-                request.accountHolderName()
+                request.accountHolderName(),
+                userId
         );
 
         return AccountResponse.from(account);

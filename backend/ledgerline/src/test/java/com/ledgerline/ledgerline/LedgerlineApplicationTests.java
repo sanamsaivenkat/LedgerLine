@@ -3,19 +3,26 @@ package com.ledgerline.ledgerline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ledgerline.ledgerline.entity.Account;
+import com.ledgerline.ledgerline.entity.AppUser;
 import com.ledgerline.ledgerline.repository.AccountRepository;
+import com.ledgerline.ledgerline.repository.AppUserRepository;
 import com.ledgerline.ledgerline.service.AccountService;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,12 +31,23 @@ class LedgerlineApplicationTests {
     @Mock
     private AccountRepository accountRepository;
 
+    @Mock
+    private AppUserRepository userRepository;
+
     @InjectMocks
     private AccountService accountService;
 
-    // Test 1: Account creation works successfully
+    private final UUID userId =
+            UUID.fromString("50009149-afa3-416b-b0f4-0f5965ad3a4c");
+
+    // Test 1: Account creation works and assigns the owner
     @Test
     void shouldCreateAccountSuccessfully() {
+
+        AppUser user = new AppUser("test@example.com", "password-hash");
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.of(user));
 
         when(accountRepository.existsByAccountNumber(anyString()))
                 .thenReturn(false);
@@ -37,14 +55,15 @@ class LedgerlineApplicationTests {
         when(accountRepository.save(any(Account.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Account account = accountService.createAccount("Test User");
+        Account account = accountService.createAccount("Test User", userId);
 
         assertEquals("Test User", account.getAccountHolderName());
 
-        assertEquals(0, account.getBalance().compareTo(
-                java.math.BigDecimal.ZERO));
+        assertEquals(0, account.getBalance().compareTo(BigDecimal.ZERO));
 
         assertEquals("ACTIVE", account.getStatus().name());
+
+        assertEquals(user, account.getOwner());
 
         verify(accountRepository).save(any(Account.class));
     }
@@ -54,8 +73,9 @@ class LedgerlineApplicationTests {
     void shouldRejectEmptyAccountHolderName() {
 
         assertThrows(IllegalArgumentException.class,
-                () -> accountService.createAccount("   "));
+                () -> accountService.createAccount("   ", userId));
 
+        verify(userRepository, never()).findById(any());
         verify(accountRepository, never()).save(any(Account.class));
     }
 
@@ -66,7 +86,21 @@ class LedgerlineApplicationTests {
         String longName = "A".repeat(101);
 
         assertThrows(IllegalArgumentException.class,
-                () -> accountService.createAccount(longName));
+                () -> accountService.createAccount(longName, userId));
+
+        verify(userRepository, never()).findById(any());
+        verify(accountRepository, never()).save(any(Account.class));
+    }
+
+    // Test 4: Account creation is rejected for an unknown user
+    @Test
+    void shouldRejectAccountCreationForUnknownUser() {
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(java.util.NoSuchElementException.class,
+                () -> accountService.createAccount("Test User", userId));
 
         verify(accountRepository, never()).save(any(Account.class));
     }

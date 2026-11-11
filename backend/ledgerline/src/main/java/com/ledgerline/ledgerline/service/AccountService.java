@@ -1,26 +1,36 @@
+
 package com.ledgerline.ledgerline.service;
 
 import java.security.SecureRandom;
+import java.util.NoSuchElementException;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ledgerline.ledgerline.entity.Account;
+import com.ledgerline.ledgerline.entity.AppUser;
 import com.ledgerline.ledgerline.repository.AccountRepository;
+import com.ledgerline.ledgerline.repository.AppUserRepository;
 
 @Service
 public class AccountService {
 
     private final AccountRepository accountRepository;
+    private final AppUserRepository userRepository;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    public AccountService(AccountRepository accountRepository) {
+    public AccountService(
+            AccountRepository accountRepository,
+            AppUserRepository userRepository) {
+
         this.accountRepository = accountRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
-    public Account createAccount(String accountHolderName) {
+    public Account createAccount(String accountHolderName, UUID userId) {
 
         if (accountHolderName == null || accountHolderName.isBlank()) {
             throw new IllegalArgumentException(
@@ -36,9 +46,17 @@ public class AccountService {
             );
         }
 
+        AppUser owner = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new NoSuchElementException("User not found"));
+
         String accountNumber = generateUniqueAccountNumber();
 
-        Account account = new Account(accountNumber, holderName);
+        Account account = new Account(
+                accountNumber,
+                holderName,
+                owner
+        );
 
         return accountRepository.save(account);
     }

@@ -1,3 +1,4 @@
+
 package com.ledgerline.ledgerline.repository;
 
 import java.util.Optional;
@@ -18,8 +19,16 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     boolean existsByAccountNumber(String accountNumber);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT a FROM Account a WHERE a.id = :id")
-    Optional<Account> findByIdForUpdate(@Param("id") UUID id);
+    boolean existsByIdAndOwner_Id(UUID accountId, UUID userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT a FROM Account a
+            WHERE a.id = :accountId
+            AND a.owner.id = :userId
+            """)
+    Optional<Account> findByIdAndOwnerIdForUpdate(
+            @Param("accountId") UUID accountId,
+            @Param("userId") UUID userId
+    );
 }

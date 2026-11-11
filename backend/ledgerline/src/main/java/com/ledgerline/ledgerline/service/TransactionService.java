@@ -25,16 +25,20 @@ public class TransactionService {
     public TransactionService(
             AccountRepository accountRepository,
             TransactionRepository transactionRepository) {
+
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
     }
 
     @Transactional
-    public Transaction deposit(UUID accountId, BigDecimal amount) {
+    public Transaction deposit(
+            UUID accountId,
+            UUID userId,
+            BigDecimal amount) {
 
         validateAmount(amount);
 
-        Account account = getActiveAccount(accountId);
+        Account account = getActiveAccount(accountId, userId);
         account.deposit(amount);
 
         Transaction transaction = new Transaction(
@@ -48,11 +52,14 @@ public class TransactionService {
     }
 
     @Transactional
-    public Transaction withdraw(UUID accountId, BigDecimal amount) {
+    public Transaction withdraw(
+            UUID accountId,
+            UUID userId,
+            BigDecimal amount) {
 
         validateAmount(amount);
 
-        Account account = getActiveAccount(accountId);
+        Account account = getActiveAccount(accountId, userId);
         account.withdraw(amount);
 
         Transaction transaction = new Transaction(
@@ -66,9 +73,14 @@ public class TransactionService {
     }
 
     @Transactional(readOnly = true)
-    public List<Transaction> getTransactionHistory(UUID accountId) {
+    public List<Transaction> getTransactionHistory(
+            UUID accountId,
+            UUID userId) {
 
-        if (!accountRepository.existsById(accountId)) {
+        boolean accountBelongsToUser =
+                accountRepository.existsByIdAndOwner_Id(accountId, userId);
+
+        if (!accountBelongsToUser) {
             throw new NoSuchElementException("Account not found");
         }
 
@@ -76,9 +88,10 @@ public class TransactionService {
                 .findByAccountIdOrderByCreatedAtDesc(accountId);
     }
 
-    private Account getActiveAccount(UUID accountId) {
+    private Account getActiveAccount(UUID accountId, UUID userId) {
 
-        Account account = accountRepository.findByIdForUpdate(accountId)
+        Account account = accountRepository
+                .findByIdAndOwnerIdForUpdate(accountId, userId)
                 .orElseThrow(() ->
                         new NoSuchElementException("Account not found"));
 

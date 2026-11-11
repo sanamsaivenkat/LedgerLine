@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,24 +35,44 @@ public class TransactionController {
     @ResponseStatus(HttpStatus.CREATED)
     public Transaction deposit(
             @PathVariable UUID accountId,
-            @Valid @RequestBody TransactionRequest request) {
+            @Valid @RequestBody TransactionRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
 
-        return transactionService.deposit(accountId, request.amount());
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        return transactionService.deposit(
+                accountId,
+                userId,
+                request.amount()
+        );
     }
 
     @PostMapping("/withdraw")
     @ResponseStatus(HttpStatus.CREATED)
     public Transaction withdraw(
             @PathVariable UUID accountId,
-            @Valid @RequestBody TransactionRequest request) {
+            @Valid @RequestBody TransactionRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
 
-        return transactionService.withdraw(accountId, request.amount());
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        return transactionService.withdraw(
+                accountId,
+                userId,
+                request.amount()
+        );
     }
 
     @GetMapping("/transactions")
     public List<Transaction> getTransactionHistory(
-            @PathVariable UUID accountId) {
+            @PathVariable UUID accountId,
+            @AuthenticationPrincipal Jwt jwt) {
 
-        return transactionService.getTransactionHistory(accountId);
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        return transactionService.getTransactionHistory(
+                accountId,
+                userId
+        );
     }
 }
