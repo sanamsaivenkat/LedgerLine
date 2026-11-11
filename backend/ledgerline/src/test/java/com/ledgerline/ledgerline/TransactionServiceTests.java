@@ -143,7 +143,7 @@ class TransactionServiceTests {
         verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
-    // Test 4: Reject zero transaction amount
+    // Test 4: Reject zero deposit
     @Test
     void shouldRejectZeroAmount() {
 
@@ -161,7 +161,7 @@ class TransactionServiceTests {
         verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 
-    // Test 5: Reject negative transaction amount
+    // Test 5: Reject negative deposit
     @Test
     void shouldRejectNegativeAmount() {
 
@@ -204,7 +204,7 @@ class TransactionServiceTests {
 
     // Test 7: Reject withdrawal by a different user
     @Test
-    void shouldRejectwithdrawalByNonOwner() {
+    void shouldRejectWithdrawalByNonOwner() {
 
         Account account = createAccount();
         account.deposit(new BigDecimal("100.00"));
@@ -271,5 +271,61 @@ class TransactionServiceTests {
                 .findByAccountIdOrderByCreatedAtDesc(accountId);
 
         verifyNoInteractions(auditLogRepository);
+    }
+
+    // Test 10: Reject negative withdrawal
+    @Test
+    void shouldRejectNegativeWithdrawal() {
+
+        UUID accountId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> transactionService.withdraw(
+                        accountId, userId,
+                        new BigDecimal("-50.00")
+                ));
+
+        verify(accountRepository, never())
+                .findByIdAndOwnerIdForUpdate(any(), any());
+
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
+    }
+
+    // Test 11: Reject zero withdrawal
+    @Test
+    void shouldRejectZeroWithdrawal() {
+
+        UUID accountId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> transactionService.withdraw(
+                        accountId, userId, BigDecimal.ZERO
+                ));
+
+        verify(accountRepository, never())
+                .findByIdAndOwnerIdForUpdate(any(), any());
+
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
+    }
+
+    // Test 12: Reject more than two decimal places
+    @Test
+    void shouldRejectAmountWithMoreThanTwoDecimalPlaces() {
+
+        UUID accountId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> transactionService.deposit(
+                        accountId, userId,
+                        new BigDecimal("100.123")
+                ));
+
+        verify(accountRepository, never())
+                .findByIdAndOwnerIdForUpdate(any(), any());
+
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(auditLogRepository, never()).save(any(AuditLog.class));
     }
 }
