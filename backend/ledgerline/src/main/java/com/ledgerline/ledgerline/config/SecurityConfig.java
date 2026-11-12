@@ -1,4 +1,4 @@
-﻿package com.ledgerline.ledgerline.config;
+package com.ledgerline.ledgerline.config;
 
 import java.util.Arrays;
 import java.util.List;
